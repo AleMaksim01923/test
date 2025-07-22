@@ -1,0 +1,692 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>Управление серверами</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link href="https://fonts.googleapis.com/css?family=Roboto:400,500,700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #0078d7;
+            --primary-dark: #005fa3;
+            --danger: #dc3545;
+            --success: #28a745;
+            --bg: #f4f6fa;
+            --card-bg: #fff;
+            --border: #e0e0e0;
+            --shadow: 0 2px 12px #0001;
+        }
+        html, body {
+            height: 100%;
+        }
+        body {
+            font-family: 'Roboto', Arial, sans-serif;
+            background: var(--bg);
+            margin: 0;
+            min-height: 100vh;
+        }
+        header {
+            background: var(--primary);
+            color: #fff;
+            padding: 1.5em 0 1em 0;
+            text-align: center;
+            box-shadow: var(--shadow);
+        }
+        .container {
+            max-width: 1100px;
+            margin: 2em auto;
+            background: var(--card-bg);
+            border-radius: 12px;
+            box-shadow: var(--shadow);
+            padding: 2em 2.5em 2em 2.5em;
+        }
+        .servers-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1.5em;
+        }
+        .servers-header h2 {
+            margin: 0;
+        }
+        .btn {
+            background: var(--primary);
+            color: #fff;
+            border: none;
+            border-radius: 6px;
+            padding: 0.6em 1.3em;
+            font-size: 1em;
+            font-weight: 500;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        .btn:hover {
+            background: var(--primary-dark);
+        }
+        .btn-danger {
+            background: var(--danger);
+        }
+        .btn-success {
+            background: var(--success);
+        }
+        .servers-list {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 1.5em;
+            box-sizing: border-box;
+        }
+        .server-card {
+            background: var(--card-bg);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            box-shadow: var(--shadow);
+            padding: 1.5em 1.2em 1.2em 1.2em;
+            min-width: 270px;
+            max-width: 320px;
+            flex: 1 1 270px;
+            display: flex;
+            flex-direction: column;
+            gap: 0.7em;
+            position: relative;
+            box-sizing: border-box;
+        }
+        .server-card .server-title {
+            font-size: 1.15em;
+            font-weight: 500;
+            margin-bottom: 0.2em;
+        }
+        .server-card .server-status {
+            font-size: 0.95em;
+            color: var(--success);
+            margin-bottom: 0.5em;
+        }
+        .server-card .server-status.offline {
+            color: var(--danger);
+        }
+        .server-card .server-actions {
+            display: flex;
+            gap: 0.5em;
+            margin-top: 0.5em;
+            justify-content: flex-start;
+            flex-wrap: wrap;
+        }
+        .server-card .server-type {
+            font-size: 0.95em;
+            color: #888;
+        }
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0; top: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.25);
+            align-items: center;
+            justify-content: center;
+        }
+        .modal.active {
+            display: flex;
+        }
+        .modal-content {
+            background: var(--card-bg);
+            border-radius: 10px;
+            box-shadow: var(--shadow);
+            padding: 2em 2.5em;
+            min-width: 340px;
+            max-width: 95vw;
+        }
+        .modal-content h3 {
+            margin-top: 0;
+        }
+        .form-group {
+            margin-bottom: 1.2em;
+        }
+        .form-group label {
+            display: block;
+            margin-bottom: 0.3em;
+            font-weight: 500;
+        }
+        .form-group input, .form-group select {
+            width: 100%;
+            padding: 0.5em;
+            border: 1px solid var(--border);
+            border-radius: 5px;
+            font-size: 1em;
+        }
+        .form-actions {
+            display: flex;
+            justify-content: flex-end;
+            gap: 1em;
+        }
+        .tabs {
+            display: flex;
+            gap: 1em;
+            margin: 2em 0 1em 0;
+        }
+        .tab-btn {
+            background: #eee;
+            color: #333;
+            border: none;
+            border-radius: 6px 6px 0 0;
+            padding: 0.7em 1.5em;
+            font-size: 1em;
+            cursor: pointer;
+            font-weight: 500;
+            transition: background 0.2s;
+        }
+        .tab-btn.active {
+            background: var(--primary);
+            color: #fff;
+        }
+        .tab-content {
+            display: none;
+        }
+        .tab-content.active {
+            display: block;
+        }
+        .ssh-form, .file-form, .service-form {
+            margin-bottom: 2em;
+            background: #f8fafd;
+            border-radius: 8px;
+            padding: 1.5em 1.5em 1em 1.5em;
+            box-shadow: 0 1px 4px #0001;
+        }
+        .ssh-result {
+            background: #222;
+            color: #b6ffb6;
+            border-radius: 6px;
+            padding: 1em;
+            min-height: 60px;
+            font-family: 'Fira Mono', 'Consolas', monospace;
+            margin-bottom: 1em;
+            white-space: pre-wrap;
+            word-break: break-all;
+        }
+        .explorer-form {
+            display: flex;
+            gap: 1em;
+            align-items: center;
+        }
+        .explorer-list {
+            margin-top: 1em;
+            background: #fff;
+            border-radius: 8px;
+            box-shadow: 0 1px 4px #0001;
+            padding: 1em;
+            min-height: 120px;
+            font-family: 'Fira Mono', 'Consolas', monospace;
+        }
+        .explorer-item {
+            cursor: pointer;
+            padding: 0.3em 0.7em;
+            border-radius: 5px;
+            margin: 0.1em 0;
+            display: inline-block;
+            transition: background 0.15s;
+        }
+        .explorer-item:hover {
+            background: #e0eaff;
+        }
+        .explorer-item.folder {
+            font-weight: bold;
+            color: #0078d7;
+        }
+        .explorer-item.file {
+            color: #333;
+        }
+        @media (max-width: 700px) {
+            .container { padding: 1em; }
+            .modal-content { padding: 1em; }
+            .servers-list { flex-direction: column; }
+        }
+    </style>
+</head>
+<body>
+<header>
+    <h1>Управление серверами и мониторингом</h1>
+</header>
+<div class="container">
+    <div class="servers-header">
+        <h2>Серверы</h2>
+        <button class="btn btn-success" onclick="openServerModal()">+ Добавить сервер</button>
+    </div>
+    <div class="servers-list" id="serversList"></div>
+</div>
+<div class="container">
+    <div class="tabs">
+        <button class="tab-btn active" onclick="showTab('ssh')">Команды</button>
+        <button class="tab-btn" onclick="showTab('files')">Файлы</button>
+        <button class="tab-btn" onclick="showTab('service')">Службы</button>
+        <button class="tab-btn" onclick="showTab('explorer')">Проводник</button>
+    </div>
+    <div class="tab-content active" id="tab-ssh">
+        <form class="ssh-form" onsubmit="event.preventDefault(); runSshCommand();">
+            <div class="form-group">
+                <label>Сервер</label>
+                <select id="sshServerSelect"></select>
+            </div>
+            <div class="form-group">
+                <label>Команда для запуска</label>
+                <input id="sshCmd" placeholder="например, ls -la">
+            </div>
+            <div class="form-actions">
+                <button class="btn" type="submit">Выполнить команду</button>
+            </div>
+            <div class="ssh-result" id="sshResult"></div>
+        </form>
+    </div>
+    <div class="tab-content" id="tab-files">
+        <form class="file-form" onsubmit="event.preventDefault();">
+            <div class="form-group">
+                <label>Сервер</label>
+                <select id="fileServerSelect"></select>
+            </div>
+            <div class="form-group">
+                <label>Файл для загрузки</label>
+                <input type="file" id="uploadFile">
+            </div>
+            <div class="form-group">
+                <label>Путь на сервере</label>
+                <input id="remotePath" placeholder="например, /tmp/file.txt">
+            </div>
+            <div class="form-actions">
+                <button class="btn" onclick="uploadFile()">Загрузить файл</button>
+                <button class="btn" onclick="downloadFile()">Скачать файл</button>
+            </div>
+            <div class="ssh-result" id="fileResult"></div>
+        </form>
+    </div>
+    <div class="tab-content" id="tab-service">
+        <form class="service-form" onsubmit="event.preventDefault(); createService();">
+            <div class="form-group">
+                <label>Сервер</label>
+                <select id="serviceServerSelect"></select>
+            </div>
+            <div class="form-group">
+                <label>Имя службы</label>
+                <input id="serviceName" placeholder="например, mybot">
+            </div>
+            <div class="form-group">
+                <label>ExecStart (путь к скрипту/программе)</label>
+                <input id="serviceExec" placeholder="например, /usr/bin/python3 /home/user/bot.py">
+            </div>
+            <div class="form-group">
+                <label>Описание</label>
+                <input id="serviceDesc" placeholder="Описание службы">
+            </div>
+            <div class="form-actions">
+                <button class="btn" type="submit">Создать службу</button>
+            </div>
+            <div class="ssh-result" id="serviceResult"></div>
+        </form>
+    </div>
+    <div class="tab-content" id="tab-explorer">
+        <form class="explorer-form" onsubmit="event.preventDefault();">
+            <div class="form-group">
+                <label>Сервер</label>
+                <select id="explorerServerSelect"></select>
+            </div>
+            <div class="form-group">
+                <label>Путь</label>
+                <input id="explorerPath" value="/" readonly>
+            </div>
+            <div class="form-actions">
+                <button class="btn" type="button" onclick="explorePath()">Открыть</button>
+            </div>
+            <div id="explorerList" class="explorer-list"></div>
+        </form>
+    </div>
+</div>
+<!-- Модальное окно для добавления/редактирования сервера -->
+<div class="modal" id="serverModal">
+    <div class="modal-content">
+        <h3 id="serverModalTitle">Добавить сервер</h3>
+        <form id="serverForm" onsubmit="event.preventDefault(); saveServer();">
+            <div class="form-group">
+                <label>Название</label>
+                <input id="serverName" required>
+            </div>
+            <div class="form-group">
+                <label>Host (IP или домен)</label>
+                <input id="serverHost" required>
+            </div>
+            <div class="form-group">
+                <label>Пользователь</label>
+                <input id="serverUser" required>
+            </div>
+            <div class="form-group">
+                <label>Пароль</label>
+                <input id="serverPass" type="password" required>
+            </div>
+            <div class="form-group">
+                <label>Тип сервера</label>
+                <select id="serverType">
+                    <option value="linux">Linux</option>
+                    <option value="windows">Windows</option>
+                </select>
+            </div>
+            <div class="form-actions">
+                <button class="btn btn-success" type="submit">Сохранить</button>
+                <button class="btn btn-danger" type="button" onclick="closeServerModal()">Отмена</button>
+            </div>
+            <div id="serverModalError" style="color:var(--danger);margin-top:1em;"></div>
+        </form>
+    </div>
+</div>
+<div id="explorerContextMenu" style="display:none;position:absolute;z-index:2000;background:#fff;border:1px solid #ccc;border-radius:6px;box-shadow:0 2px 8px #0002;padding:0.5em 0;min-width:120px;"></div>
+<script>
+// --- Серверы ---
+let servers = [];
+let editServerIdx = null;
+function loadServers() {
+    const data = localStorage.getItem('servers');
+    servers = data ? JSON.parse(data) : [];
+}
+function saveServers() {
+    localStorage.setItem('servers', JSON.stringify(servers));
+    renderServers();
+    updateServerSelects();
+}
+function renderServers() {
+    const list = document.getElementById('serversList');
+    list.innerHTML = '';
+    servers.forEach((srv, idx) => {
+        const card = document.createElement('div');
+        card.className = 'server-card';
+        card.innerHTML = `
+            <div class="server-title">${srv.name}</div>
+            <div class="server-type">${srv.type === 'linux' ? 'Linux' : 'Windows'}</div>
+            <div class="server-status ${srv.status === 'online' ? '' : 'offline'}">${srv.status === 'online' ? 'Онлайн' : 'Оффлайн'}</div>
+            <div class="server-actions">
+                <button class="btn" onclick="editServer(${idx})">Редактировать</button>
+                <button class="btn btn-danger" onclick="deleteServer(${idx})">Удалить</button>
+                <button class="btn" onclick="checkServer(${idx})">Проверить</button>
+            </div>
+        `;
+        list.appendChild(card);
+    });
+}
+function openServerModal(editIdx = null) {
+    editServerIdx = editIdx;
+    document.getElementById('serverModal').classList.add('active');
+    document.getElementById('serverModalError').textContent = '';
+    if (editIdx !== null) {
+        const s = servers[editIdx];
+        document.getElementById('serverModalTitle').textContent = 'Редактировать сервер';
+        document.getElementById('serverName').value = s.name;
+        document.getElementById('serverHost').value = s.host;
+        document.getElementById('serverUser').value = s.user;
+        document.getElementById('serverPass').value = s.pass;
+        document.getElementById('serverType').value = s.type;
+    } else {
+        document.getElementById('serverModalTitle').textContent = 'Добавить сервер';
+        document.getElementById('serverName').value = '';
+        document.getElementById('serverHost').value = '';
+        document.getElementById('serverUser').value = '';
+        document.getElementById('serverPass').value = '';
+        document.getElementById('serverType').value = 'linux';
+    }
+}
+function closeServerModal() {
+    document.getElementById('serverModal').classList.remove('active');
+}
+function saveServer() {
+    const name = document.getElementById('serverName').value.trim();
+    const host = document.getElementById('serverHost').value.trim();
+    const user = document.getElementById('serverUser').value.trim();
+    const pass = document.getElementById('serverPass').value;
+    const type = document.getElementById('serverType').value;
+    if (!name || !host || !user || !pass) {
+        document.getElementById('serverModalError').textContent = 'Заполните все поля';
+        return;
+    }
+    // Проверка подключения
+    document.getElementById('serverModalError').textContent = 'Проверка подключения...';
+    if (window.chrome && window.chrome.webview) {
+        window.chrome.webview.postMessage({ action: 'check', host, user, pass, type });
+    }
+    // После успешной проверки добавим сервер (см. onCheckResult)
+}
+function onCheckResult(ok, msg, idx) {
+    if (ok) {
+        if (typeof idx !== 'undefined') {
+            servers[idx].status = 'online';
+            saveServers();
+        } else {
+            if (editServerIdx !== null) {
+                servers[editServerIdx].status = 'online';
+                saveServers();
+            } else {
+                // старое поведение для добавления нового сервера
+                const name = document.getElementById('serverName').value.trim();
+                const host = document.getElementById('serverHost').value.trim();
+                const user = document.getElementById('serverUser').value.trim();
+                const pass = document.getElementById('serverPass').value;
+                const type = document.getElementById('serverType').value;
+                const server = { name, host, user, pass, type, status: 'online' };
+                servers.push(server);
+                saveServers();
+            }
+        }
+        closeServerModal();
+    } else {
+        document.getElementById('serverModalError').textContent = msg || 'Ошибка подключения';
+    }
+}
+function editServer(idx) {
+    openServerModal(idx);
+}
+function deleteServer(idx) {
+    if (confirm('Удалить сервер?')) {
+        servers.splice(idx, 1);
+        saveServers();
+    }
+}
+function checkServer(idx) {
+    const s = servers[idx];
+    document.getElementById('serverModalError').textContent = 'Проверка подключения...';
+    if (window.chrome && window.chrome.webview) {
+        window.chrome.webview.postMessage({ action: 'check', host: s.host, user: s.user, pass: s.pass, type: s.type, idx });
+    }
+}
+function updateServerSelects() {
+    const selects = [
+        document.getElementById('sshServerSelect'),
+        document.getElementById('fileServerSelect'),
+        document.getElementById('serviceServerSelect'),
+        document.getElementById('explorerServerSelect')
+    ];
+    selects.forEach(sel => {
+        if (!sel) return;
+        sel.innerHTML = '';
+        servers.forEach((srv, idx) => {
+            const opt = document.createElement('option');
+            opt.value = idx;
+            opt.textContent = srv.name + ' (' + srv.host + ')';
+            sel.appendChild(opt);
+        });
+    });
+}
+// --- Tabs ---
+function showTab(tab) {
+    document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+    document.querySelectorAll('.tab-content').forEach(tc => tc.classList.remove('active'));
+    document.querySelector('.tab-btn[onclick*="' + tab + '"]').classList.add('active');
+    document.getElementById('tab-' + tab).classList.add('active');
+}
+// --- SSH ---
+function runSshCommand() {
+    const idx = document.getElementById('sshServerSelect').value;
+    const cmd = document.getElementById('sshCmd').value;
+    if (!servers[idx]) return;
+    const { host, user, pass, type } = servers[idx];
+    document.getElementById('sshResult').textContent = 'Выполнение...';
+    if (window.chrome && window.chrome.webview) {
+        window.chrome.webview.postMessage({ action: 'run', host, user, pass, type, cmd });
+    }
+}
+// --- Files ---
+function uploadFile() {
+    const idx = document.getElementById('fileServerSelect').value;
+    if (!servers[idx]) return;
+    const { host, user, pass, type } = servers[idx];
+    const fileInput = document.getElementById('uploadFile');
+    const remotePath = document.getElementById('remotePath').value;
+    if (fileInput.files.length === 0) return alert('Выберите файл');
+    const file = fileInput.files[0];
+    const reader = new FileReader();
+    reader.onload = function(e) {
+        const data = Array.from(new Uint8Array(e.target.result));
+        document.getElementById('fileResult').textContent = 'Загрузка...';
+        if (window.chrome && window.chrome.webview) {
+            window.chrome.webview.postMessage({ action: 'upload', host, user, pass, type, remotePath, fileName: file.name, fileData: data });
+        }
+    };
+    reader.readAsArrayBuffer(file);
+}
+function downloadFile() {
+    const idx = document.getElementById('fileServerSelect').value;
+    if (!servers[idx]) return;
+    const { host, user, pass, type } = servers[idx];
+    const remotePath = document.getElementById('remotePath').value;
+    document.getElementById('fileResult').textContent = 'Скачивание...';
+    if (window.chrome && window.chrome.webview) {
+        window.chrome.webview.postMessage({ action: 'download', host, user, pass, type, remotePath });
+    }
+}
+// --- Service ---
+function createService() {
+    const idx = document.getElementById('serviceServerSelect').value;
+    if (!servers[idx]) return;
+    const { host, user, pass, type } = servers[idx];
+    const serviceName = document.getElementById('serviceName').value;
+    const execPath = document.getElementById('serviceExec').value;
+    const description = document.getElementById('serviceDesc').value;
+    document.getElementById('serviceResult').textContent = 'Создание службы...';
+    if (window.chrome && window.chrome.webview) {
+        window.chrome.webview.postMessage({ action: 'service', host, user, pass, type, serviceName, execPath, description });
+    }
+}
+// --- Explorer ---
+let explorerCurrentPath = "/";
+function explorePath(path) {
+    const idx = document.getElementById('explorerServerSelect').value;
+    if (!servers[idx]) return;
+    const { host, user, pass, type } = servers[idx];
+    if (!path) path = document.getElementById('explorerPath').value || "/";
+    document.getElementById('explorerPath').value = path;
+    document.getElementById('explorerList').textContent = 'Загрузка...';
+    if (window.chrome && window.chrome.webview) {
+        window.chrome.webview.postMessage({ action: 'explore', host, user, pass, type, path });
+    }
+}
+
+function renderExplorerList(dirs, files) {
+    const list = document.getElementById('explorerList');
+    list.innerHTML = '';
+    // Кнопка назад
+    const path = document.getElementById('explorerPath').value;
+    if (path !== '/' && path !== '.') {
+        const upBtn = document.createElement('div');
+        upBtn.className = 'explorer-item folder';
+        upBtn.textContent = '.. (вверх)';
+        upBtn.onclick = () => {
+            let parts = path.split('/').filter(Boolean);
+            parts.pop();
+            let upPath = '/' + parts.join('/');
+            if (upPath === '') upPath = '/';
+            explorePath(upPath);
+        };
+        list.appendChild(upBtn);
+    }
+    dirs.forEach(dir => {
+        const div = document.createElement('div');
+        div.className = 'explorer-item folder';
+        div.textContent = dir + '/';
+        div.onclick = () => {
+            let base = path.endsWith('/') ? path : path + '/';
+            explorePath(base + dir);
+        };
+        div.oncontextmenu = (e) => {
+            e.preventDefault();
+            showExplorerContextMenu(e, dir, true);
+        };
+        list.appendChild(div);
+    });
+    files.forEach(file => {
+        const div = document.createElement('div');
+        div.className = 'explorer-item file';
+        div.textContent = file;
+        // Можно добавить обработчик для скачивания/открытия файла
+        div.oncontextmenu = (e) => {
+            e.preventDefault();
+            showExplorerContextMenu(e, file, false);
+        };
+        list.appendChild(div);
+    });
+}
+// --- Контекстное меню для скачивания ---
+function showExplorerContextMenu(e, name, isFolder) {
+    const menu = document.getElementById('explorerContextMenu');
+    menu.innerHTML = '';
+    const item = document.createElement('div');
+    item.textContent = 'Скачать';
+    item.style.padding = '0.5em 1em';
+    item.style.cursor = 'pointer';
+    item.onmouseover = () => item.style.background = '#e0eaff';
+    item.onmouseout = () => item.style.background = '';
+    item.onclick = () => {
+        menu.style.display = 'none';
+        explorerDownload(name, isFolder);
+    };
+    menu.appendChild(item);
+    menu.style.left = e.pageX + 'px';
+    menu.style.top = e.pageY + 'px';
+    menu.style.display = 'block';
+    document.addEventListener('mousedown', hideExplorerContextMenu, { once: true });
+}
+function hideExplorerContextMenu() {
+    document.getElementById('explorerContextMenu').style.display = 'none';
+}
+function explorerDownload(name, isFolder) {
+    const idx = document.getElementById('explorerServerSelect').value;
+    if (!servers[idx]) return;
+    const { host, user, pass, type } = servers[idx];
+    const path = document.getElementById('explorerPath').value;
+    let fullPath = path.endsWith('/') ? path + name : path + '/' + name;
+    if (window.chrome && window.chrome.webview) {
+        window.chrome.webview.postMessage({ action: 'download_local', host, user, pass, type, path: fullPath, isFolder });
+    }
+}
+// --- Получение ответа от C# ---
+if (window.chrome && window.chrome.webview) {
+    window.chrome.webview.addEventListener('message', event => {
+        let data = event.data;
+        if (typeof data === 'object' && data.type === 'EXPLORE_RESULT') {
+            renderExplorerList(data.dirs, data.files);
+        } else if (typeof data === 'string' && data.startsWith('CHECK_OK:')) {
+            // ищем idx в event.data (если это объект)
+            let idx = undefined;
+            if (typeof event.data === 'object' && event.data.idx !== undefined) idx = event.data.idx;
+            onCheckResult(true, null, idx);
+        } else if (typeof data === 'string' && data.startsWith('CHECK_FAIL:')) {
+            onCheckResult(false, data.substring(11));
+        } else if (typeof data === 'string' && data.startsWith('FILE:')) {
+            document.getElementById('fileResult').textContent = data.substring(5);
+        } else if (typeof data === 'string' && data.startsWith('SERVICE:')) {
+            document.getElementById('serviceResult').textContent = data.substring(8);
+        } else if (typeof data === 'string' && data.startsWith('SSH:')) {
+            document.getElementById('sshResult').textContent = data.substring(4);
+        } else {
+            // fallback: выводим в активный tab
+            let activeTab = document.querySelector('.tab-content.active .ssh-result');
+            if (activeTab) activeTab.textContent = data;
+        }
+    });
+}
+// --- Init ---
+loadServers();
+renderServers();
+updateServerSelects();
+</script>
+</body>
+</html> 
