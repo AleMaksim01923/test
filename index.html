@@ -24,6 +24,7 @@
             background: var(--bg);
             margin: 0;
             min-height: 100vh;
+            padding-bottom: 250px; /* Место для терминала */
         }
         header {
             background: var(--primary);
@@ -68,6 +69,10 @@
         }
         .btn-success {
             background: var(--success);
+        }
+        .btn-small {
+            padding: 0.3em 0.8em;
+            font-size: 0.85em;
         }
         .servers-list {
             display: flex;
@@ -201,36 +206,67 @@
             white-space: pre-wrap;
             word-break: break-all;
         }
-        .logs-terminal {
+        /* Фиксированный терминал */
+        .terminal-container {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            height: 250px;
             background: #1e1e1e;
-            color: #d4d4d4;
-            border-radius: 8px;
-            padding: 1.5em;
-            min-height: 400px;
-            max-height: 600px;
-            overflow-y: auto;
-            font-family: 'Fira Mono', 'Consolas', monospace;
-            font-size: 0.9em;
-            line-height: 1.4;
-            border: 1px solid #333;
+            border-top: 2px solid #333;
+            z-index: 100;
+            display: flex;
+            flex-direction: column;
+            box-shadow: 0 -4px 12px rgba(0,0,0,0.3);
         }
-        .logs-header {
+        .terminal-header {
+            background: #2d2d30;
+            color: #cccccc;
+            padding: 0.5em 1em;
             display: flex;
             justify-content: space-between;
             align-items: center;
-            margin-bottom: 1em;
+            border-bottom: 1px solid #3e3e42;
+            font-size: 0.9em;
         }
-        .logs-header h3 {
-            margin: 0;
-            color: #333;
+        .terminal-title {
+            font-weight: 500;
+            display: flex;
+            align-items: center;
+            gap: 0.5em;
+        }
+        .terminal-title:before {
+            content: "●";
+            color: #81c784;
+        }
+        .terminal-controls {
+            display: flex;
+            gap: 0.5em;
+        }
+        .terminal-content {
+            flex: 1;
+            background: #1e1e1e;
+            color: #d4d4d4;
+            padding: 1em;
+            overflow-y: auto;
+            font-family: 'Fira Mono', 'Consolas', monospace;
+            font-size: 0.85em;
+            line-height: 1.4;
+        }
+        .terminal-minimized {
+            height: 35px;
+        }
+        .terminal-minimized .terminal-content {
+            display: none;
         }
         .log-entry {
-            margin-bottom: 0.5em;
-            padding: 0.3em 0;
+            margin-bottom: 0.3em;
+            padding: 0.2em 0;
         }
         .log-timestamp {
             color: #888;
-            font-size: 0.85em;
+            font-size: 0.9em;
         }
         .log-level-info {
             color: #4fc3f7;
@@ -280,6 +316,8 @@
             .container { padding: 1em; }
             .modal-content { padding: 1em; }
             .servers-list { flex-direction: column; }
+            body { padding-bottom: 200px; }
+            .terminal-container { height: 200px; }
         }
     </style>
 </head>
@@ -300,7 +338,6 @@
         <button class="tab-btn" onclick="showTab('files')">Файлы</button>
         <button class="tab-btn" onclick="showTab('service')">Службы</button>
         <button class="tab-btn" onclick="showTab('explorer')">Проводник</button>
-        <button class="tab-btn" onclick="showTab('logs')">Логи</button>
     </div>
     <div class="tab-content active" id="tab-ssh">
         <form class="ssh-form" onsubmit="event.preventDefault(); runSshCommand();">
@@ -379,14 +416,20 @@
             <div id="explorerList" class="explorer-list"></div>
         </form>
     </div>
-    <div class="tab-content" id="tab-logs">
-        <div class="logs-header">
-            <h3>Логи операций</h3>
-            <button class="btn" onclick="clearLogs()">Очистить логи</button>
-        </div>
-        <div class="logs-terminal" id="logsTerminal"></div>
-    </div>
 </div>
+
+<!-- Фиксированный терминал -->
+<div class="terminal-container" id="terminalContainer">
+    <div class="terminal-header">
+        <div class="terminal-title">Терминал</div>
+        <div class="terminal-controls">
+            <button class="btn btn-small" onclick="clearLogs()">Очистить</button>
+            <button class="btn btn-small" onclick="toggleTerminal()">−</button>
+        </div>
+    </div>
+    <div class="terminal-content" id="logsTerminal"></div>
+</div>
+
 <!-- Модальное окно для добавления/редактирования сервера -->
 <div class="modal" id="serverModal">
     <div class="modal-content">
@@ -425,7 +468,9 @@
 </div>
 <div id="explorerContextMenu" style="display:none;position:absolute;z-index:2000;background:#fff;border:1px solid #ccc;border-radius:6px;box-shadow:0 2px 8px #0002;padding:0.5em 0;min-width:120px;"></div>
 <script>
-// --- Логи ---
+// --- Терминал ---
+let terminalMinimized = false;
+
 function addLog(message, level = 'info') {
     const timestamp = new Date().toLocaleTimeString();
     const terminal = document.getElementById('logsTerminal');
@@ -459,6 +504,21 @@ function addLog(message, level = 'info') {
 function clearLogs() {
     document.getElementById('logsTerminal').innerHTML = '';
     addLog('Логи очищены', 'info');
+}
+
+function toggleTerminal() {
+    const container = document.getElementById('terminalContainer');
+    const btn = document.querySelector('.terminal-controls .btn:last-child');
+    
+    terminalMinimized = !terminalMinimized;
+    
+    if (terminalMinimized) {
+        container.classList.add('terminal-minimized');
+        btn.textContent = '+';
+    } else {
+        container.classList.remove('terminal-minimized');
+        btn.textContent = '−';
+    }
 }
 
 // --- Серверы ---
