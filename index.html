@@ -201,6 +201,49 @@
             white-space: pre-wrap;
             word-break: break-all;
         }
+        .logs-terminal {
+            background: #1e1e1e;
+            color: #d4d4d4;
+            border-radius: 8px;
+            padding: 1.5em;
+            min-height: 400px;
+            max-height: 600px;
+            overflow-y: auto;
+            font-family: 'Fira Mono', 'Consolas', monospace;
+            font-size: 0.9em;
+            line-height: 1.4;
+            border: 1px solid #333;
+        }
+        .logs-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1em;
+        }
+        .logs-header h3 {
+            margin: 0;
+            color: #333;
+        }
+        .log-entry {
+            margin-bottom: 0.5em;
+            padding: 0.3em 0;
+        }
+        .log-timestamp {
+            color: #888;
+            font-size: 0.85em;
+        }
+        .log-level-info {
+            color: #4fc3f7;
+        }
+        .log-level-success {
+            color: #81c784;
+        }
+        .log-level-error {
+            color: #e57373;
+        }
+        .log-level-warning {
+            color: #ffb74d;
+        }
         .explorer-form {
             display: flex;
             gap: 1em;
@@ -257,6 +300,7 @@
         <button class="tab-btn" onclick="showTab('files')">Файлы</button>
         <button class="tab-btn" onclick="showTab('service')">Службы</button>
         <button class="tab-btn" onclick="showTab('explorer')">Проводник</button>
+        <button class="tab-btn" onclick="showTab('logs')">Логи</button>
     </div>
     <div class="tab-content active" id="tab-ssh">
         <form class="ssh-form" onsubmit="event.preventDefault(); runSshCommand();">
@@ -335,6 +379,13 @@
             <div id="explorerList" class="explorer-list"></div>
         </form>
     </div>
+    <div class="tab-content" id="tab-logs">
+        <div class="logs-header">
+            <h3>Логи операций</h3>
+            <button class="btn" onclick="clearLogs()">Очистить логи</button>
+        </div>
+        <div class="logs-terminal" id="logsTerminal"></div>
+    </div>
 </div>
 <!-- Модальное окно для добавления/редактирования сервера -->
 <div class="modal" id="serverModal">
@@ -374,6 +425,42 @@
 </div>
 <div id="explorerContextMenu" style="display:none;position:absolute;z-index:2000;background:#fff;border:1px solid #ccc;border-radius:6px;box-shadow:0 2px 8px #0002;padding:0.5em 0;min-width:120px;"></div>
 <script>
+// --- Логи ---
+function addLog(message, level = 'info') {
+    const timestamp = new Date().toLocaleTimeString();
+    const terminal = document.getElementById('logsTerminal');
+    const entry = document.createElement('div');
+    entry.className = 'log-entry';
+    
+    const timeSpan = document.createElement('span');
+    timeSpan.className = 'log-timestamp';
+    timeSpan.textContent = `[${timestamp}] `;
+    
+    const messageSpan = document.createElement('span');
+    messageSpan.className = `log-level-${level}`;
+    messageSpan.textContent = message;
+    
+    entry.appendChild(timeSpan);
+    entry.appendChild(messageSpan);
+    terminal.appendChild(entry);
+    
+    // Автопрокрутка вниз
+    terminal.scrollTop = terminal.scrollHeight;
+    
+    // Ограничиваем количество логов (оставляем последние 500)
+    const entries = terminal.querySelectorAll('.log-entry');
+    if (entries.length > 500) {
+        for (let i = 0; i < entries.length - 500; i++) {
+            entries[i].remove();
+        }
+    }
+}
+
+function clearLogs() {
+    document.getElementById('logsTerminal').innerHTML = '';
+    addLog('Логи очищены', 'info');
+}
+
 // --- Серверы ---
 let servers = [];
 let editServerIdx = null;
@@ -417,6 +504,7 @@ function openServerModal(editIdx = null) {
         document.getElementById('serverUser').value = s.user;
         document.getElementById('serverPass').value = s.pass;
         document.getElementById('serverType').value = s.type;
+        addLog(`Редактирование сервера: ${s.name}`, 'info');
     } else {
         document.getElementById('serverModalTitle').textContent = 'Добавить сервер';
         document.getElementById('serverName').value = '';
@@ -424,6 +512,7 @@ function openServerModal(editIdx = null) {
         document.getElementById('serverUser').value = '';
         document.getElementById('serverPass').value = '';
         document.getElementById('serverType').value = 'linux';
+        addLog('Добавление нового сервера', 'info');
     }
 }
 function closeServerModal() {
@@ -437,10 +526,12 @@ function saveServer() {
     const type = document.getElementById('serverType').value;
     if (!name || !host || !user || !pass) {
         document.getElementById('serverModalError').textContent = 'Заполните все поля';
+        addLog('Ошибка: не все поля заполнены', 'error');
         return;
     }
     // Проверка подключения
     document.getElementById('serverModalError').textContent = 'Проверка подключения...';
+    addLog(`Проверка подключения к серверу ${host}...`, 'info');
     if (window.chrome && window.chrome.webview) {
         window.chrome.webview.postMessage({ action: 'check', host, user, pass, type });
     }
@@ -450,10 +541,12 @@ function onCheckResult(ok, msg, idx) {
     if (ok) {
         if (typeof idx !== 'undefined') {
             servers[idx].status = 'online';
+            addLog(`Сервер ${servers[idx].name} (${servers[idx].host}) онлайн`, 'success');
             saveServers();
         } else {
             if (editServerIdx !== null) {
                 servers[editServerIdx].status = 'online';
+                addLog(`Сервер ${servers[editServerIdx].name} успешно обновлен`, 'success');
                 saveServers();
             } else {
                 // старое поведение для добавления нового сервера
@@ -464,12 +557,14 @@ function onCheckResult(ok, msg, idx) {
                 const type = document.getElementById('serverType').value;
                 const server = { name, host, user, pass, type, status: 'online' };
                 servers.push(server);
+                addLog(`Сервер ${name} (${host}) успешно добавлен`, 'success');
                 saveServers();
             }
         }
         closeServerModal();
     } else {
         document.getElementById('serverModalError').textContent = msg || 'Ошибка подключения';
+        addLog(`Ошибка подключения: ${msg || 'Неизвестная ошибка'}`, 'error');
     }
 }
 function editServer(idx) {
@@ -477,13 +572,16 @@ function editServer(idx) {
 }
 function deleteServer(idx) {
     if (confirm('Удалить сервер?')) {
+        const serverName = servers[idx].name;
         servers.splice(idx, 1);
+        addLog(`Сервер ${serverName} удален`, 'warning');
         saveServers();
     }
 }
 function checkServer(idx) {
     const s = servers[idx];
     document.getElementById('serverModalError').textContent = 'Проверка подключения...';
+    addLog(`Проверка соединения с сервером ${s.name} (${s.host})...`, 'info');
     if (window.chrome && window.chrome.webview) {
         window.chrome.webview.postMessage({ action: 'check', host: s.host, user: s.user, pass: s.pass, type: s.type, idx });
     }
@@ -520,6 +618,7 @@ function runSshCommand() {
     if (!servers[idx]) return;
     const { host, user, pass, type } = servers[idx];
     document.getElementById('sshResult').textContent = 'Выполнение...';
+    addLog(`Выполнение команды на ${servers[idx].name}: ${cmd}`, 'info');
     if (window.chrome && window.chrome.webview) {
         window.chrome.webview.postMessage({ action: 'run', host, user, pass, type, cmd });
     }
@@ -533,6 +632,7 @@ function uploadFile() {
     const remotePath = document.getElementById('remotePath').value;
     if (fileInput.files.length === 0) return alert('Выберите файл');
     const file = fileInput.files[0];
+    addLog(`Загрузка файла ${file.name} на сервер ${servers[idx].name} по пути ${remotePath}`, 'info');
     const reader = new FileReader();
     reader.onload = function(e) {
         const data = Array.from(new Uint8Array(e.target.result));
@@ -549,6 +649,7 @@ function downloadFile() {
     const { host, user, pass, type } = servers[idx];
     const remotePath = document.getElementById('remotePath').value;
     document.getElementById('fileResult').textContent = 'Скачивание...';
+    addLog(`Скачивание файла ${remotePath} с сервера ${servers[idx].name}`, 'info');
     if (window.chrome && window.chrome.webview) {
         window.chrome.webview.postMessage({ action: 'download', host, user, pass, type, remotePath });
     }
@@ -562,6 +663,7 @@ function createService() {
     const execPath = document.getElementById('serviceExec').value;
     const description = document.getElementById('serviceDesc').value;
     document.getElementById('serviceResult').textContent = 'Создание службы...';
+    addLog(`Создание службы ${serviceName} на сервере ${servers[idx].name}`, 'info');
     if (window.chrome && window.chrome.webview) {
         window.chrome.webview.postMessage({ action: 'service', host, user, pass, type, serviceName, execPath, description });
     }
@@ -575,6 +677,7 @@ function explorePath(path) {
     if (!path) path = document.getElementById('explorerPath').value || "/";
     document.getElementById('explorerPath').value = path;
     document.getElementById('explorerList').textContent = 'Загрузка...';
+    addLog(`Открытие папки ${path} на сервере ${servers[idx].name}`, 'info');
     if (window.chrome && window.chrome.webview) {
         window.chrome.webview.postMessage({ action: 'explore', host, user, pass, type, path });
     }
@@ -623,6 +726,7 @@ function renderExplorerList(dirs, files) {
         };
         list.appendChild(div);
     });
+    addLog(`Загружено ${dirs.length} папок и ${files.length} файлов`, 'success');
 }
 // --- Контекстное меню для скачивания ---
 function showExplorerContextMenu(e, name, isFolder) {
@@ -653,6 +757,7 @@ function explorerDownload(name, isFolder) {
     const { host, user, pass, type } = servers[idx];
     const path = document.getElementById('explorerPath').value;
     let fullPath = path.endsWith('/') ? path + name : path + '/' + name;
+    addLog(`Начинается скачивание ${isFolder ? 'папки' : 'файла'}: ${fullPath} с сервера ${servers[idx].name}`, 'info');
     if (window.chrome && window.chrome.webview) {
         window.chrome.webview.postMessage({ action: 'download_local', host, user, pass, type, path: fullPath, isFolder });
     }
@@ -671,15 +776,43 @@ if (window.chrome && window.chrome.webview) {
         } else if (typeof data === 'string' && data.startsWith('CHECK_FAIL:')) {
             onCheckResult(false, data.substring(11));
         } else if (typeof data === 'string' && data.startsWith('FILE:')) {
-            document.getElementById('fileResult').textContent = data.substring(5);
+            const message = data.substring(5);
+            document.getElementById('fileResult').textContent = message;
+            if (message.includes('успешно') || message.includes('завершен')) {
+                addLog(`Файловая операция: ${message}`, 'success');
+            } else if (message.includes('ошибка') || message.includes('не удалось')) {
+                addLog(`Ошибка файловой операции: ${message}`, 'error');
+            } else {
+                addLog(`Файловая операция: ${message}`, 'info');
+            }
         } else if (typeof data === 'string' && data.startsWith('SERVICE:')) {
-            document.getElementById('serviceResult').textContent = data.substring(8);
+            const message = data.substring(8);
+            document.getElementById('serviceResult').textContent = message;
+            if (message.includes('успешно') || message.includes('создан')) {
+                addLog(`Служба: ${message}`, 'success');
+            } else if (message.includes('ошибка') || message.includes('не удалось')) {
+                addLog(`Ошибка службы: ${message}`, 'error');
+            } else {
+                addLog(`Служба: ${message}`, 'info');
+            }
         } else if (typeof data === 'string' && data.startsWith('SSH:')) {
-            document.getElementById('sshResult').textContent = data.substring(4);
+            const message = data.substring(4);
+            document.getElementById('sshResult').textContent = message;
+            addLog(`SSH результат: ${message.substring(0, 100)}${message.length > 100 ? '...' : ''}`, 'info');
+        } else if (typeof data === 'string' && data.startsWith('DOWNLOAD:')) {
+            const message = data.substring(9);
+            if (message.includes('успешно') || message.includes('завершено')) {
+                addLog(`Скачивание: ${message}`, 'success');
+            } else if (message.includes('ошибка') || message.includes('не удалось')) {
+                addLog(`Ошибка скачивания: ${message}`, 'error');
+            } else {
+                addLog(`Скачивание: ${message}`, 'info');
+            }
         } else {
             // fallback: выводим в активный tab
             let activeTab = document.querySelector('.tab-content.active .ssh-result');
             if (activeTab) activeTab.textContent = data;
+            addLog(`Получено сообщение: ${data}`, 'info');
         }
     });
 }
@@ -687,6 +820,7 @@ if (window.chrome && window.chrome.webview) {
 loadServers();
 renderServers();
 updateServerSelects();
+addLog('Система управления серверами запущена', 'success');
 </script>
 </body>
 </html> 
